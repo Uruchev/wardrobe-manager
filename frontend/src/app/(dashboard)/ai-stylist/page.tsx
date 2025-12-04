@@ -30,7 +30,9 @@ interface WeatherData {
 }
 
 interface SuggestionResponse {
+  success?: boolean;
   message: string;
+  sessionId?: string;
   suggestions?: Outfit[];
 }
 
@@ -42,11 +44,12 @@ export default function AiStylistPage() {
       id: "welcome",
       role: "assistant",
       content:
-        "Здравейте! 👋 Аз съм вашият AI стилист. Мога да ви помогна да изберете подходящ тоалет за всякакъв повод. Просто ми кажете какво планирате!",
+        "Здравейте! 👋 Аз съм Стела, вашият AI стилист. Мога да ви помогна да изберете подходящ тоалет за всякакъв повод. Просто ми кажете какво планирате!",
       createdAt: new Date().toISOString(),
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string>('session_' + Date.now());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -80,6 +83,7 @@ export default function AiStylistPage() {
     mutationFn: async (message: string) => {
       const response = await api.post<SuggestionResponse>("/ai/chat", {
         message,
+        sessionId,
         context: {
           weather,
           garmentCount: garmentsData?.total || 0,
@@ -88,15 +92,38 @@ export default function AiStylistPage() {
       return response.data;
     },
     onSuccess: (data) => {
+      // Handle the response properly
+      let messageContent = '';
+      if (typeof data === 'string') {
+        messageContent = data;
+      } else if (data?.message) {
+        messageContent = data.message;
+      } else {
+        messageContent = 'Извинете, възникна грешка. Моля, опитайте отново.';
+      }
+      
       const assistantMessage: ChatMessage = {
         id: Date.now().toString(),
         role: "assistant",
-        content: data.message,
+        content: messageContent,
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
+      
+      // Update session ID if provided
+      if (data?.sessionId) {
+        setSessionId(data.sessionId);
+      }
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Chat error:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: "Извинете, възникна грешка при комуникация. Моля, опитайте отново.",
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
       toast.error("Грешка при комуникация с AI стилиста");
     },
     onSettled: () => {
@@ -279,7 +306,14 @@ export default function AiStylistPage() {
               size="sm"
               className="text-[10px] md:text-xs h-6 px-2"
               onClick={() => {
-                setMessages([messages[0]]);
+                const welcomeMessage: ChatMessage = {
+                  id: "welcome",
+                  role: "assistant",
+                  content: "Здравейте! 👋 Аз съм Стела, вашият AI стилист. Мога да ви помогна да изберете подходящ тоалет за всякакъв повод. Просто ми кажете какво планирате!",
+                  createdAt: new Date().toISOString(),
+                };
+                setMessages([welcomeMessage]);
+                setSessionId('session_' + Date.now());
               }}
             >
               <RefreshCw className="h-3 w-3 mr-1" />
