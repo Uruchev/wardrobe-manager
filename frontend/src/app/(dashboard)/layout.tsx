@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   Shirt,
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuthStore } from "@/stores/auth-store";
+import { navigateTo } from "@/lib/config";
 
 const navigation = [
   { name: "Гардероб", href: "/wardrobe", icon: Shirt },
@@ -35,27 +36,29 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const { user, isAuthenticated, logout, _hasHydrated } = useAuthStore();
+  const { user, isAuthenticated, isHydrated, logout, hydrate } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Hydrate auth state on mount
   useEffect(() => {
-    // Wait for hydration before checking auth
-    if (_hasHydrated && !isAuthenticated) {
-      const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
-      window.location.href = `${basePath}/login/`;
+    hydrate();
+  }, [hydrate]);
+
+  // Redirect to login if not authenticated after hydration
+  useEffect(() => {
+    if (isHydrated && !isAuthenticated) {
+      navigateTo('/login/');
     }
-  }, [_hasHydrated, isAuthenticated]);
+  }, [isHydrated, isAuthenticated]);
 
   const handleLogout = () => {
     logout();
-    const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
-    window.location.href = `${basePath}/login/`;
+    navigateTo('/login/');
   };
 
   // Show loading while hydrating
-  if (!_hasHydrated) {
+  if (!isHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
@@ -63,8 +66,13 @@ export default function DashboardLayout({
     );
   }
 
+  // Don't render if not authenticated
   if (!isAuthenticated) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    );
   }
 
   const userInitials = user?.name

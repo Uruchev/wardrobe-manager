@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +28,7 @@ import {
 } from "@/components/ui/form";
 
 import { api } from "@/lib/api";
+import { navigateTo } from "@/lib/config";
 import { useAuthStore } from "@/stores/auth-store";
 import type { AuthResponse } from "@/lib/types";
 
@@ -40,8 +40,7 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { setTokens, setUser } = useAuthStore();
+  const { login } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -59,19 +58,17 @@ export default function LoginPage() {
       const response = await api.post<AuthResponse>("/auth/login", data);
       const { accessToken, refreshToken, user } = response.data;
 
-      setTokens(accessToken, refreshToken);
-      setUser(user);
-
+      login(user, accessToken, refreshToken);
       toast.success("Успешен вход!");
       
-      // Use window.location for reliable redirect with basePath
-      const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
-      window.location.href = `${basePath}/wardrobe/`;
+      // Small delay to ensure localStorage is updated
+      setTimeout(() => {
+        navigateTo('/wardrobe/');
+      }, 100);
     } catch (error: any) {
       const message =
         error.response?.data?.message || "Грешка при вход. Опитайте отново.";
       toast.error(message);
-    } finally {
       setIsLoading(false);
     }
   };

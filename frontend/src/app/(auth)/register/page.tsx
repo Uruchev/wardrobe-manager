@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +35,7 @@ import {
 } from "@/components/ui/select";
 
 import { api } from "@/lib/api";
+import { navigateTo } from "@/lib/config";
 import { useAuthStore } from "@/stores/auth-store";
 import { Gender, GENDER_LABELS } from "@/lib/constants";
 import type { AuthResponse } from "@/lib/types";
@@ -56,8 +56,7 @@ const registerSchema = z
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const { setTokens, setUser } = useAuthStore();
+  const { login } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -79,20 +78,18 @@ export default function RegisterPage() {
       const response = await api.post<AuthResponse>("/auth/register", registerData);
       const { accessToken, refreshToken, user } = response.data;
 
-      setTokens(accessToken, refreshToken);
-      setUser(user);
-
+      login(user, accessToken, refreshToken);
       toast.success("Успешна регистрация!");
       
-      // Use window.location for reliable redirect with basePath
-      const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
-      window.location.href = `${basePath}/wardrobe/`;
+      // Small delay to ensure localStorage is updated
+      setTimeout(() => {
+        navigateTo('/wardrobe/');
+      }, 100);
     } catch (error: any) {
       const message =
         error.response?.data?.message ||
         "Грешка при регистрация. Опитайте отново.";
       toast.error(message);
-    } finally {
       setIsLoading(false);
     }
   };

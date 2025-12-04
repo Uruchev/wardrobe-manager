@@ -1,70 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Loader2, User, Camera } from "lucide-react";
+import { Loader2, Camera } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
-import { Gender, GENDER_LABELS } from "@/lib/constants";
-
-const profileSchema = z.object({
-  name: z.string().min(2, "Името трябва да е поне 2 символа"),
-  gender: z.nativeEnum(Gender).optional(),
-  location: z.string().optional(),
-});
-
-type ProfileFormData = z.infer<typeof profileSchema>;
+import { navigateTo } from "@/lib/config";
 
 export default function ProfilePage() {
-  const { user, setUser } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, logout } = useAuthStore();
 
-  const form = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: user?.name || "",
-      gender: user?.gender as Gender || undefined,
-      location: user?.location || "",
-    },
-  });
-
-  const onSubmit = async (data: ProfileFormData) => {
-    setIsLoading(true);
-    try {
-      const response = await api.patch("/users/profile", data);
-      setUser(response.data);
-      toast.success("Профилът е обновен успешно");
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || "Грешка при обновяване на профила";
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLogout = () => {
+    logout();
+    toast.success("Излязохте успешно");
+    navigateTo('/login/');
   };
 
   const userInitials = user?.name
@@ -78,7 +31,7 @@ export default function ProfilePage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Профил</h1>
         <p className="text-muted-foreground">
-          Управлявайте вашата лична информация
+          Вашата лична информация
         </p>
       </div>
 
@@ -86,9 +39,6 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle>Профилна снимка</CardTitle>
-          <CardDescription>
-            Тази снимка ще се показва в приложението
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-6">
@@ -99,127 +49,43 @@ export default function ProfilePage() {
               </AvatarFallback>
             </Avatar>
             <div className="space-y-2">
-              <Button variant="outline" disabled>
-                <Camera className="mr-2 h-4 w-4" />
-                Смяна на снимката
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                JPG, PNG или GIF. Максимум 2MB.
-              </p>
+              <p className="font-medium text-lg">{user?.name}</p>
+              <p className="text-muted-foreground">{user?.email}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Profile Form */}
+      {/* Profile Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Лична информация</CardTitle>
-          <CardDescription>
-            Обновете вашите данни тук
-          </CardDescription>
+          <CardTitle>Информация</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Име</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Вашето име"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Име</label>
+            <Input value={user?.name || ""} disabled />
+          </div>
 
-              <div className="space-y-2">
-                <FormLabel>Имейл</FormLabel>
-                <Input value={user?.email || ""} disabled />
-                <p className="text-xs text-muted-foreground">
-                  Имейлът не може да бъде променян
-                </p>
-              </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Имейл</label>
+            <Input value={user?.email || ""} disabled />
+          </div>
 
-              <FormField
-                control={form.control}
-                name="gender"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Пол</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={isLoading}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Изберете пол" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.entries(GENDER_LABELS).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Местоположение</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="напр. София, България"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground">
-                      Използва се за прогноза на времето
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Запази промените
-                </Button>
-              </div>
-            </form>
-          </Form>
+          {user?.gender && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Пол</label>
+              <Input value={user.gender === 'male' ? 'Мъж' : user.gender === 'female' ? 'Жена' : 'Друго'} disabled />
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Danger Zone */}
-      <Card className="border-red-200">
-        <CardHeader>
-          <CardTitle className="text-red-600">Опасна зона</CardTitle>
-          <CardDescription>
-            Внимание: тези действия са необратими
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="destructive" disabled>
-            Изтриване на акаунта
+      {/* Logout */}
+      <Card>
+        <CardContent className="pt-6">
+          <Button variant="destructive" onClick={handleLogout} className="w-full">
+            Изход от профила
           </Button>
         </CardContent>
       </Card>
