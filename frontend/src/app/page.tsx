@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { navigateTo } from "@/lib/config";
 
 export default function HomePage() {
-  const router = useRouter();
-  
   useEffect(() => {
-    router.replace("/login");
-  }, [router]);
+    // Check if user is logged in
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (token) {
+      navigateTo("/wardrobe");
+    } else {
+      navigateTo("/login");
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center">
