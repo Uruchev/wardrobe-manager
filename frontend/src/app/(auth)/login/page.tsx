@@ -55,19 +55,34 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
+      console.log('Attempting login with:', data.email);
       const response = await api.post<AuthResponse>("/auth/login", data);
-      const { accessToken, refreshToken, user } = response.data;
+      console.log('Login response:', response.data);
+      
+      // Handle both response formats
+      const responseData = response.data;
+      if (!responseData || (!responseData.accessToken && !responseData.user)) {
+        throw new Error('Invalid response from server');
+      }
+      
+      const { accessToken, refreshToken, user } = responseData;
+      
+      if (!accessToken || !user) {
+        throw new Error('Missing token or user data');
+      }
 
       login(user, accessToken, refreshToken);
       toast.success("Успешен вход!");
       
-      // Small delay to ensure localStorage is updated
-      setTimeout(() => {
-        navigateTo('/wardrobe/');
-      }, 100);
+      // Navigate to wardrobe
+      navigateTo('/wardrobe');
     } catch (error: any) {
+      console.error('Login error:', error);
       const message =
-        error.response?.data?.message || "Грешка при вход. Опитайте отново.";
+        error.response?.data?.error || 
+        error.response?.data?.message || 
+        error.message ||
+        "Грешка при вход. Опитайте отново.";
       toast.error(message);
       setIsLoading(false);
     }

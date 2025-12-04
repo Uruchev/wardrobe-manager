@@ -48,13 +48,13 @@ export default function DashboardLayout({
   // Redirect to login if not authenticated after hydration
   useEffect(() => {
     if (isHydrated && !isAuthenticated) {
-      navigateTo('/login/');
+      navigateTo('/login');
     }
   }, [isHydrated, isAuthenticated]);
 
   const handleLogout = () => {
     logout();
-    navigateTo('/login/');
+    navigateTo('/login');
   };
 
   // Show loading while hydrating

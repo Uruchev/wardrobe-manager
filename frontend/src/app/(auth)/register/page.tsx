@@ -83,7 +83,7 @@ export default function RegisterPage() {
       
       // Small delay to ensure localStorage is updated
       setTimeout(() => {
-        navigateTo('/wardrobe/');
+        navigateTo('/wardrobe');
       }, 100);
     } catch (error: any) {
       const message =
