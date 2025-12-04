@@ -42,6 +42,10 @@ jobs:
           npm run build
         env:
           NEXT_PUBLIC_API_URL: https://n8n.simeontsvetanovn8nworkflows.site/webhook
+          NODE_ENV: production
+
+      - name: Add .nojekyll
+        run: touch ./frontend/out/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
