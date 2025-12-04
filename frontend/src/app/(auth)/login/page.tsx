@@ -63,7 +63,10 @@ export default function LoginPage() {
       setUser(user);
 
       toast.success("Успешен вход!");
-      router.push("/wardrobe");
+      
+      // Use window.location for reliable redirect with basePath
+      const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
+      window.location.href = `${basePath}/wardrobe/`;
     } catch (error: any) {
       const message =
         error.response?.data?.message || "Грешка при вход. Опитайте отново.";

@@ -83,7 +83,10 @@ export default function RegisterPage() {
       setUser(user);
 
       toast.success("Успешна регистрация!");
-      router.push("/wardrobe");
+      
+      // Use window.location for reliable redirect with basePath
+      const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
+      window.location.href = `${basePath}/wardrobe/`;
     } catch (error: any) {
       const message =
         error.response?.data?.message ||

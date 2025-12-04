@@ -43,13 +43,15 @@ export default function DashboardLayout({
   useEffect(() => {
     // Wait for hydration before checking auth
     if (_hasHydrated && !isAuthenticated) {
-      router.push("/login");
+      const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
+      window.location.href = `${basePath}/login/`;
     }
-  }, [_hasHydrated, isAuthenticated, router]);
+  }, [_hasHydrated, isAuthenticated]);
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
+    const basePath = process.env.NODE_ENV === 'production' ? '/wardrobe-manager' : '';
+    window.location.href = `${basePath}/login/`;
   };
 
   // Show loading while hydrating
