@@ -1,0 +1,165 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Loader2, Eye, EyeOff, Shirt } from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import type { AuthResponse } from "@/lib/types";
+
+const loginSchema = z.object({
+  email: z.string().email("Невалиден имейл адрес"),
+  password: z.string().min(6, "Паролата трябва да е поне 6 символа"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { setTokens, setUser } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const form = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    setIsLoading(true);
+    try {
+      const response = await api.post<AuthResponse>("/auth/login", data);
+      const { accessToken, refreshToken, user } = response.data;
+
+      setTokens(accessToken, refreshToken);
+      setUser(user);
+
+      toast.success("Успешен вход!");
+      router.push("/wardrobe");
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message || "Грешка при вход. Опитайте отново.";
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card className="shadow-lg">
+      <CardHeader className="space-y-1 text-center">
+        <div className="flex justify-center mb-2">
+          <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full">
+            <Shirt className="h-8 w-8 text-white" />
+          </div>
+        </div>
+        <CardTitle className="text-2xl font-bold">Wardrobe Manager</CardTitle>
+        <CardDescription>
+          Влезте в профила си, за да управлявате гардероба
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Имейл</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Парола</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                        disabled={isLoading}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Вход
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+      <CardFooter className="flex flex-col space-y-2">
+        <div className="text-sm text-muted-foreground text-center">
+          Нямате акаунт?{" "}
+          <Link href="/register" className="text-primary hover:underline">
+            Регистрирайте се
+          </Link>
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}
