@@ -37,27 +37,23 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, _hasHydrated } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Small delay to allow hydration
-    const timer = setTimeout(() => {
-      if (!isAuthenticated) {
-        router.push("/login");
-      }
-      setIsLoading(false);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, router]);
+    // Wait for hydration before checking auth
+    if (_hasHydrated && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [_hasHydrated, isAuthenticated, router]);
 
   const handleLogout = () => {
     logout();
     router.push("/login");
   };
 
-  if (isLoading) {
+  // Show loading while hydrating
+  if (!_hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
