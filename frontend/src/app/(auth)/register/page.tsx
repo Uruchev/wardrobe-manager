@@ -75,42 +75,12 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const { confirmPassword, ...registerData } = data;
-      let responseData: AuthResponse;
       
-      try {
-        const response = await api.post<AuthResponse>("/auth/register", registerData);
-        responseData = response.data;
-        
-        if (!responseData || (!responseData.accessToken && !responseData.user)) {
-          throw new Error('Empty response');
-        }
-      } catch (apiError) {
-        console.log('API failed, using demo mode');
-        // Fallback to demo mode if n8n is not responding
-        const now = Date.now();
-        const demoUser = {
-          id: 'demo_user_' + data.email.split('@')[0],
-          email: data.email,
-          name: data.name,
-          gender: data.gender || null,
-          age: null,
-          stylePreferences: [],
-          avatarUrl: null,
-          height: null,
-          weight: null,
-          sizeTop: null,
-          sizeBottom: null,
-          sizeShoes: null,
-          location: null,
-          profileImageUrl: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        responseData = {
-          user: demoUser,
-          accessToken: btoa(JSON.stringify({ id: demoUser.id, email: data.email, exp: now + 86400000 })),
-          refreshToken: btoa(JSON.stringify({ id: demoUser.id, type: 'refresh', exp: now + 604800000 })),
-        };
+      const response = await api.post<AuthResponse>("/auth/register", registerData);
+      const responseData = response.data;
+      
+      if (!responseData || !responseData.accessToken || !responseData.user) {
+        throw new Error('Невалиден отговор от сървъра');
       }
       
       const { accessToken, refreshToken, user } = responseData;
@@ -120,7 +90,9 @@ export default function RegisterPage() {
       navigateTo('/wardrobe');
     } catch (error: any) {
       const message =
+        error.response?.data?.error ||
         error.response?.data?.message ||
+        error.message ||
         "Грешка при регистрация. Опитайте отново.";
       toast.error(message);
       setIsLoading(false);
