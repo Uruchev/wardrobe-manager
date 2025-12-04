@@ -1,0 +1,143 @@
+{
+  "name": "AI Stylist - Wardrobe Manager",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-stylist",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "ai-stylist"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract data from webhook\nconst input = $input.first().json;\n\nconst message = input.message || '';\nconst userProfile = input.userProfile || {};\nconst wardrobe = input.wardrobe || { items: [], totalCount: 0 };\nconst context = input.context || {};\nconst conversationHistory = input.conversationHistory || [];\n\n// Build wardrobe summary\nconst categories = {};\nwardrobe.items.forEach(item => {\n  const cat = item.category || 'other';\n  categories[cat] = (categories[cat] || 0) + 1;\n});\n\nconst wardrobeSummary = Object.entries(categories)\n  .map(([cat, count]) => `${cat}: ${count}`)\n  .join(', ');\n\n// Build system prompt in Bulgarian\nconst systemPrompt = `Ти си AI модният стилист за приложението \"Wardrobe Manager\". \nОтговаряй ВИНАГИ на български език.\n\nПотребителски профил:\n- Име: ${userProfile.name || 'Неизвестно'}\n- Пол: ${userProfile.gender || 'Неуточнен'}\n- Стилови предпочитания: ${JSON.stringify(userProfile.stylePreferences) || 'Няма'}\n\nГардероб на потребителя (${wardrobe.totalCount} артикула):\n${wardrobeSummary || 'Празен гардероб'}\n\nКонтекст:\n- Време: ${context.weather ? context.weather.temp + '°C, ' + context.weather.description : 'Няма данни'}\n- Дата: ${context.currentDate || new Date().toLocaleDateString('bg-BG')}\n\nИнструкции:\n1. Давай конкретни препоръки базирани на дрехите в гардероба\n2. Съобразявай се с времето и повода\n3. Предлагай цветови комбинации\n4. Ако гардеробът е празен, насърчи потребителя да добави дрехи\n5. Бъди приятелски настроен и професионален\n6. Използвай емоджита за по-добра визуализация`;\n\n// Build messages for AI\nconst messages = [\n  { role: 'system', content: systemPrompt }\n];\n\n// Add conversation history (last 5 messages)\nconversationHistory.slice(-5).forEach(msg => {\n  messages.push({\n    role: msg.role === 'user' ? 'user' : 'assistant',\n    content: msg.content\n  });\n});\n\n// Add current message\nmessages.push({ role: 'user', content: message });\n\nreturn {\n  messages,\n  originalInput: input\n};"
+      },
+      "id": "prepare-prompt",
+      "name": "Prepare AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.messages }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "openai-chat",
+      "name": "OpenAI Chat",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.5,
+      "position": [690, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract response from OpenAI\nconst openaiResponse = $input.first().json;\n\nlet responseText = '';\n\n// Handle different response formats\nif (openaiResponse.message?.content) {\n  responseText = openaiResponse.message.content;\n} else if (openaiResponse.text) {\n  responseText = openaiResponse.text;\n} else if (typeof openaiResponse === 'string') {\n  responseText = openaiResponse;\n} else {\n  responseText = 'Съжалявам, възникна проблем при обработката на заявката.';\n}\n\nreturn {\n  message: responseText,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "AI",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Wardrobe",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "1"
+}

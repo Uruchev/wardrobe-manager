@@ -1,0 +1,117 @@
+{
+  "name": "AI Stylist - Ollama (Local)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-stylist",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "ai-stylist"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract data from webhook\nconst input = $input.first().json;\n\nconst message = input.message || '';\nconst userProfile = input.userProfile || {};\nconst wardrobe = input.wardrobe || { items: [], totalCount: 0 };\nconst context = input.context || {};\nconst conversationHistory = input.conversationHistory || [];\n\n// Build wardrobe summary\nconst categories = {};\nwardrobe.items.forEach(item => {\n  const cat = item.category || 'other';\n  categories[cat] = (categories[cat] || 0) + 1;\n});\n\nconst wardrobeSummary = Object.entries(categories)\n  .map(([cat, count]) => `${cat}: ${count}`)\n  .join(', ');\n\n// Build prompt for Ollama\nconst systemPrompt = `Ти си AI модният стилист. Отговаряй ВИНАГИ на български език.\n\nПотребител: ${userProfile.name || 'Потребител'}\nПол: ${userProfile.gender || 'Неуточнен'}\nГардероб: ${wardrobe.totalCount} артикула (${wardrobeSummary || 'празен'})\nВреме: ${context.weather ? context.weather.temp + '°C' : 'няма данни'}\n\nДавай конкретни модни съвети. Използвай емоджита.`;\n\n// Build conversation\nlet fullPrompt = systemPrompt + '\\n\\n';\n\nconversationHistory.slice(-3).forEach(msg => {\n  if (msg.role === 'user') {\n    fullPrompt += `Потребител: ${msg.content}\\n`;\n  } else {\n    fullPrompt += `Стилист: ${msg.content}\\n`;\n  }\n});\n\nfullPrompt += `Потребител: ${message}\\nСтилист:`;\n\nreturn {\n  prompt: fullPrompt,\n  model: 'llama3.1:8b'\n};"
+      },
+      "id": "prepare-prompt",
+      "name": "Prepare Ollama Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $json.model }}\",\n  \"prompt\": {{ JSON.stringify($json.prompt) }},\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.7,\n    \"num_predict\": 500\n  }\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "ollama-api",
+      "name": "Ollama API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract response from Ollama\nconst ollamaResponse = $input.first().json;\n\nlet responseText = ollamaResponse.response || 'Съжалявам, възникна проблем.';\n\n// Clean up response\nresponseText = responseText.trim();\n\n// Remove any \"Стилист:\" prefix if present\nif (responseText.startsWith('Стилист:')) {\n  responseText = responseText.substring(8).trim();\n}\n\nreturn {\n  message: responseText,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Ollama Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Ollama Prompt": {
+      "main": [
+        [
+          {
+            "node": "Ollama API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama API": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

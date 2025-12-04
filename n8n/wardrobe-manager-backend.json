@@ -1,0 +1,435 @@
+{
+  "name": "Wardrobe Manager - Full Backend",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/register",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+              }
+            ]
+          }
+        }
+      },
+      "id": "register-webhook",
+      "name": "Register Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 100],
+      "webhookId": "register"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/login",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "login-webhook",
+      "name": "Login Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 300],
+      "webhookId": "login"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "auth/me",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "me-webhook",
+      "name": "Get Me Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 500],
+      "webhookId": "auth-me"
+    },
+    {
+      "parameters": {
+        "httpMethod": "={{$json.httpMethod}}",
+        "path": "garments",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "garments-list-webhook",
+      "name": "Garments List Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 700],
+      "webhookId": "garments-list"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "garments",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "garments-create-webhook",
+      "name": "Garments Create Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 900],
+      "webhookId": "garments-create"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai/chat",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ai-chat-webhook",
+      "name": "AI Chat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 1100],
+      "webhookId": "ai-chat"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Register user handler\nconst body = $input.first().json.body;\n\nif (!body.email || !body.password) {\n  return [{ json: { error: 'Email and password required', statusCode: 400 } }];\n}\n\n// Generate simple user ID and tokens\nconst userId = 'user_' + Date.now();\nconst accessToken = Buffer.from(JSON.stringify({\n  id: userId,\n  email: body.email,\n  exp: Date.now() + 24 * 60 * 60 * 1000 // 24 hours\n})).toString('base64');\n\nconst refreshToken = Buffer.from(JSON.stringify({\n  id: userId,\n  type: 'refresh',\n  exp: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days\n})).toString('base64');\n\n// Store user (in production use database)\nconst user = {\n  id: userId,\n  email: body.email,\n  name: body.name || body.email.split('@')[0],\n  gender: body.gender || 'unspecified',\n  createdAt: new Date().toISOString()\n};\n\nreturn [{\n  json: {\n    user,\n    accessToken,\n    refreshToken\n  }\n}];"
+      },
+      "id": "register-handler",
+      "name": "Register Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Login handler\nconst body = $input.first().json.body;\n\nif (!body.email || !body.password) {\n  return [{ json: { error: 'Email and password required', statusCode: 400 } }];\n}\n\n// In production, verify password against stored hash\nconst userId = 'user_' + Buffer.from(body.email).toString('base64').slice(0, 8);\n\nconst accessToken = Buffer.from(JSON.stringify({\n  id: userId,\n  email: body.email,\n  exp: Date.now() + 24 * 60 * 60 * 1000\n})).toString('base64');\n\nconst refreshToken = Buffer.from(JSON.stringify({\n  id: userId,\n  type: 'refresh',\n  exp: Date.now() + 7 * 24 * 60 * 60 * 1000\n})).toString('base64');\n\nconst user = {\n  id: userId,\n  email: body.email,\n  name: body.email.split('@')[0]\n};\n\nreturn [{\n  json: {\n    user,\n    accessToken,\n    refreshToken\n  }\n}];"
+      },
+      "id": "login-handler",
+      "name": "Login Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get current user from token\nconst headers = $input.first().json.headers;\nconst authHeader = headers.authorization || headers.Authorization || '';\n\nif (!authHeader.startsWith('Bearer ')) {\n  return [{ json: { error: 'Unauthorized', statusCode: 401 } }];\n}\n\nconst token = authHeader.replace('Bearer ', '');\n\ntry {\n  const decoded = JSON.parse(Buffer.from(token, 'base64').toString());\n  \n  if (decoded.exp < Date.now()) {\n    return [{ json: { error: 'Token expired', statusCode: 401 } }];\n  }\n  \n  return [{\n    json: {\n      id: decoded.id,\n      email: decoded.email,\n      name: decoded.email.split('@')[0]\n    }\n  }];\n} catch (e) {\n  return [{ json: { error: 'Invalid token', statusCode: 401 } }];\n}"
+      },
+      "id": "me-handler",
+      "name": "Get Me Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI Chat handler with OpenAI\nconst body = $input.first().json.body;\nconst message = body.message || '';\nconst context = body.context || {};\n\n// Build prompt\nconst systemPrompt = `Ти си AI стилист - помощник за гардероб на български език.\nПомагаш на потребителите да изберат подходящи дрехи за различни поводи.\nДавай конкретни и полезни съвети.\nИзползвай емоджита за по-приятен интерфейс.\nВреме: ${context.weather?.temp || 20}°C, ${context.weather?.description || 'умерено'}`;\n\nreturn [{\n  json: {\n    systemPrompt,\n    userMessage: message,\n    context\n  }\n}];"
+      },
+      "id": "ai-prompt-builder",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 1100]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{$json.systemPrompt}}"
+            },
+            {
+              "role": "user",
+              "content": "={{$json.userMessage}}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "openai-node",
+      "name": "OpenAI Chat",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [500, 1100],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format AI response\nconst aiOutput = $input.first().json;\n\nlet message = '';\nif (aiOutput.message?.content) {\n  message = aiOutput.message.content;\n} else if (aiOutput.text) {\n  message = aiOutput.text;\n} else if (typeof aiOutput === 'string') {\n  message = aiOutput;\n} else {\n  message = 'Благодаря за въпроса! Мога да ви помогна с избор на тоалет. Кажете ми за какъв повод търсите дрехи?';\n}\n\nreturn [{\n  json: {\n    message,\n    sessionId: 'session_' + Date.now()\n  }\n}];"
+      },
+      "id": "ai-response-formatter",
+      "name": "Format AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 1100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, POST, PUT, DELETE, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-register",
+      "name": "Respond Register",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [500, 100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-login",
+      "name": "Respond Login",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-me",
+      "name": "Respond Me",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [500, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-ai",
+      "name": "Respond AI Chat",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 1100]
+    }
+  ],
+  "connections": {
+    "Register Webhook": {
+      "main": [
+        [
+          {
+            "node": "Register Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Handler": {
+      "main": [
+        [
+          {
+            "node": "Respond Register",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login Webhook": {
+      "main": [
+        [
+          {
+            "node": "Login Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login Handler": {
+      "main": [
+        [
+          {
+            "node": "Respond Login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Me Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Me Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Me Handler": {
+      "main": [
+        [
+          {
+            "node": "Respond Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Chat Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat": {
+      "main": [
+        [
+          {
+            "node": "Format AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format AI Response": {
+      "main": [
+        [
+          {
+            "node": "Respond AI Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-12-04T12:00:00.000Z",
+  "versionId": "1"
+}
