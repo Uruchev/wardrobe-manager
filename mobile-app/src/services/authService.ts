@@ -40,7 +40,26 @@ export const authService = {
       }
 
       if (data.user) {
-        // Profile се създава автоматично от trigger-а в Supabase
+        // Създаваме профил в user_profiles таблицата
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .upsert({
+            id: data.user.id,
+            email: email,
+            display_name: displayName || email.split('@')[0],
+            preferences: {
+              style_tags: [],
+              favorite_colors: [],
+              sizes: {}
+            }
+          });
+
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+        }
+
+        // Зареждаме профила
+        await this.loadUserProfile(data.user.id);
         return { success: true };
       }
 
@@ -119,7 +138,7 @@ export const authService = {
   async loadUserProfile(userId: string): Promise<void> {
     try {
       const { data: profile, error } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
@@ -172,7 +191,7 @@ export const authService = {
       }
 
       const { error } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .update(updates)
         .eq('id', user.id);
 

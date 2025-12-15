@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, typography, shadows } from '../../theme';
 import { authService } from '../../services/authService';
-import { useAuthStore } from '../../store';
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -24,37 +23,29 @@ export default function LoginScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-  const { setUser } = useAuthStore();
-
   const handleLogin = async () => {
-    // Demo mode - ако няма въведени данни, влизаме директно
-    if (!email.trim() && !password.trim()) {
-      // Симулираме demo потребител
-      const demoUser = {
-        id: 'demo-user-123',
-        email: 'demo@fashionadvisor.com',
-        display_name: 'Demo User',
-        avatar_url: undefined,
-        preferences: {
-          style_tags: ['casual', 'smart-casual'],
-          favorite_colors: ['black', 'white', 'navy'],
-          sizes: { tops: 'M', bottoms: '32', shoes: '42' },
-        },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setUser(demoUser);
-      return;
+    // Валидация
+    const newErrors: { email?: string; password?: string } = {};
+    
+    if (!email.trim()) {
+      newErrors.email = 'Email е задължителен';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = 'Невалиден email формат';
+    }
+    
+    if (!password.trim()) {
+      newErrors.password = 'Паролата е задължителна';
+    } else if (password.length < 6) {
+      newErrors.password = 'Паролата трябва да е поне 6 символа';
     }
 
-    // Нормален login
-    if (!email.trim()) {
-      setErrors({ email: 'Email е задължителен' });
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     setIsLoading(true);
-    const result = await authService.signIn({ email, password });
+    const result = await authService.signIn({ email: email.trim(), password });
     setIsLoading(false);
 
     if (!result.success) {
