@@ -2,6 +2,7 @@ import { supabase, ClothingItem } from '../config/supabase';
 import { useWardrobeStore } from '../store';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
+import { Platform } from 'react-native';
 
 interface ServiceResponse<T = void> {
   success: boolean;
@@ -44,20 +45,39 @@ export const wardrobeService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return { success: false, error: 'Не си влязъл в профила' };
 
-      // Read file as base64
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: 'base64',
-      });
+      let fileData: ArrayBuffer;
+      let ext = 'jpg';
+      let contentType = 'image/jpeg';
 
-      // Determine file extension
-      const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      if (Platform.OS === 'web') {
+        // Web: fetch the blob URL and convert to ArrayBuffer
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        fileData = await blob.arrayBuffer();
+        
+        // Determine content type from blob
+        if (blob.type.includes('png')) {
+          ext = 'png';
+          contentType = 'image/png';
+        }
+      } else {
+        // Native: use expo-file-system
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: 'base64',
+        });
+        fileData = decode(base64);
+        
+        // Determine file extension from URI
+        ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
+        contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      }
+
       const filePath = `${user.id}/${itemId}.${ext}`;
-      const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('clothing-images')
-        .upload(filePath, decode(base64), {
+        .upload(filePath, fileData, {
           contentType,
           upsert: true,
         });
@@ -73,6 +93,7 @@ export const wardrobeService = {
 
       return { success: true, data: publicUrl };
     } catch (error: any) {
+      console.error('Upload error:', error);
       return { success: false, error: error.message };
     }
   },
@@ -83,7 +104,13 @@ export const wardrobeService = {
   async addItem(item: Omit<ClothingItem, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<ServiceResponse<ClothingItem>> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return { success: false, error: 'Не си влязъл в профила' };
+      if (!user) {
+        console.error('addItem: User not authenticated');
+        return { success: false, error: 'Не си влязъл в профила' };
+      }
+
+      console.log('addItem: Inserting item for user:', user.id);
+      console.log('addItem: Item data:', item);
 
       const { data, error } = await supabase
         .from('clothing_items')
@@ -95,12 +122,15 @@ export const wardrobeService = {
         .single();
 
       if (error) {
+        console.error('addItem: Supabase error:', error);
         return { success: false, error: error.message };
       }
 
+      console.log('addItem: Success! Item added:', data);
       useWardrobeStore.getState().addItem(data);
       return { success: true, data };
     } catch (error: any) {
+      console.error('addItem: Exception:', error);
       return { success: false, error: error.message };
     }
   },
