@@ -4,9 +4,8 @@ import { useWardrobeStore, useOutfitsStore, useAIStore } from '../store';
 // n8n Fashion Advisor Ultimate Webhook URL
 const N8N_WEBHOOK_URL = 'https://n8n.simeontsvetanovn8nworkflows.site/webhook/fashion-advisor';
 
-// Demo mode flag - set to true for testing without authentication
-const DEMO_MODE = true;
-const DEMO_USER_ID = 'demo-user-123';
+// Demo mode flag - set to false for production with authentication
+const DEMO_MODE = false;
 
 interface ServiceResponse<T = void> {
   success: boolean;
@@ -60,14 +59,10 @@ export const aiService = {
     context?: Partial<AIContext>
   ): Promise<ServiceResponse<ChatMessage>> {
     try {
-      // Get user ID - use demo mode if no auth
-      let userId = DEMO_USER_ID;
-      
-      if (!DEMO_MODE) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return { success: false, error: 'Не си влязъл в профила' };
-        userId = user.id;
-      }
+      // Get user ID from Supabase auth
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { success: false, error: 'Не си влязъл в профила' };
+      const userId = user.id;
 
       // Get current wardrobe and outfits for context
       const wardrobe = useWardrobeStore.getState().items;
