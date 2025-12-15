@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Image,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, typography, shadows } from '../theme';
 import { useWardrobeStore } from '../store';
+import { wardrobeService } from '../services/wardrobeService';
 import { ClothingItem } from '../config/supabase';
 
 const CATEGORIES = [
@@ -25,9 +27,23 @@ const CATEGORIES = [
 ];
 
 export default function WardrobeScreen({ navigation }: any) {
-  const { items, selectedCategory, setSelectedCategory, searchQuery, setSearchQuery } =
+  const { items, isLoading, selectedCategory, setSelectedCategory, searchQuery, setSearchQuery, setLoading } =
     useWardrobeStore();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Зареждане на дрехите при влизане в екрана
+  useEffect(() => {
+    loadWardrobe();
+  }, []);
+
+  const loadWardrobe = async () => {
+    setLoading(true);
+    const result = await wardrobeService.loadItems();
+    if (!result.success) {
+      console.error('Failed to load wardrobe:', result.error);
+    }
+    setLoading(false);
+  };
 
   // Филтриране на дрехи
   const filteredItems = items.filter((item) => {
@@ -157,7 +173,12 @@ export default function WardrobeScreen({ navigation }: any) {
       </View>
 
       {/* Items Grid/List */}
-      {filteredItems.length === 0 ? (
+      {isLoading ? (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={styles.emptySubtitle}>Зареждане на гардероба...</Text>
+        </View>
+      ) : filteredItems.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="shirt-outline" size={64} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>
