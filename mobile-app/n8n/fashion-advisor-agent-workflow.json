@@ -1,0 +1,297 @@
+{
+  "name": "Fashion Advisor AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-stylist",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-main",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "ai-stylist"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Подготви контекст за гардероба\nconst body = $input.first().json.body || {};\nconst wardrobe = body.wardrobe || [];\nconst outfits = body.outfits || [];\nconst message = body.message || '';\nconst weather = body.weather || null;\n\n// Създай JSON с гардероба за tools\nconst wardrobeData = JSON.stringify(wardrobe);\nconst outfitsData = JSON.stringify(outfits);\n\nlet contextSummary = '';\n\nif (wardrobe.length > 0) {\n  const categories = {\n    'tops': 'Горници',\n    'bottoms': 'Долници', \n    'dresses': 'Рокли',\n    'outerwear': 'Връхни дрехи',\n    'shoes': 'Обувки',\n    'accessories': 'Аксесоари',\n    'bags': 'Чанти',\n    'jewelry': 'Бижута'\n  };\n  \n  const byCategory = {};\n  wardrobe.forEach(item => {\n    const cat = item.category || 'other';\n    if (!byCategory[cat]) byCategory[cat] = [];\n    byCategory[cat].push(item);\n  });\n  \n  contextSummary = `Гардероб (${wardrobe.length} дрехи): `;\n  Object.entries(byCategory).forEach(([cat, items]) => {\n    const catName = categories[cat] || cat;\n    contextSummary += `${catName}: ${items.length}, `;\n  });\n  \n  const favorites = wardrobe.filter(i => i.favorite);\n  if (favorites.length > 0) {\n    contextSummary += `Любими: ${favorites.map(i => i.name).join(', ')}`;\n  }\n} else {\n  contextSummary = 'Гардеробът е празен.';\n}\n\nreturn {\n  message,\n  contextSummary,\n  wardrobeData,\n  outfitsData,\n  itemCount: wardrobe.length,\n  outfitCount: outfits.length,\n  weather: weather ? `${weather.temperature}°C, ${weather.condition}` : 'Няма данни'\n};"
+      },
+      "id": "prepare-context",
+      "name": "Prepare Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "agent-main",
+      "name": "AI Stylist Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "openai-model",
+      "name": "OpenAI Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [500, 600]
+    },
+    {
+      "parameters": {
+        "systemMessage": "=Ти си Fashion Advisor - професионален AI стилист и моден консултант. Помагаш на потребителите да изберат какво да облекат.\n\n## Твоите способности:\n1. Предлагаш аутфити базирани на повод, време и настроение\n2. Анализираш гардероба и даваш препоръки\n3. Обясняваш защо определени комбинации работят\n4. Даваш съвети за цветови комбинации\n5. Помагаш с организация на гардероба\n\n## ВАЖНО - Използвай tools:\n- Използвай 'search_wardrobe' за да намериш конкретни дрехи\n- Използвай 'suggest_outfit' за да предложиш пълен аутфит\n- Използвай 'analyze_wardrobe' за анализ на гардероба\n- Използвай 'get_weather_advice' за съвети според времето\n\n## Правила:\n- Отговаряй САМО на български език\n- Бъди приятелски и ентусиазиран 👗👔✨💃\n- Давай конкретни и практични съвети\n- Когато предлагаш аутфит, обясни ЗАЩО работи\n\n## Текущ контекст:\n{{ $json.contextSummary }}\nВреме: {{ $json.weather }}\nОбщо дрехи: {{ $json.itemCount }}\nСъздадени аутфити: {{ $json.outfitCount }}"
+      },
+      "id": "system-prompt",
+      "name": "System Prompt",
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [500, 700]
+    },
+    {
+      "parameters": {
+        "name": "search_wardrobe",
+        "description": "Търси дрехи в гардероба по категория, цвят, сезон или ключова дума. Връща списък с подходящи дрехи.",
+        "workflowId": "={{ $workflow.id }}",
+        "responsePropertyName": "items",
+        "fields": {
+          "values": [
+            {
+              "name": "query",
+              "description": "Какво търсиш - може да е категория (tops, bottoms, shoes), цвят (черно, бяло), сезон (лято, зима) или ключова дума",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "category",
+              "description": "Филтрирай по категория: tops, bottoms, dresses, outerwear, shoes, accessories",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      },
+      "id": "tool-search",
+      "name": "Search Wardrobe",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "name": "suggest_outfit",
+        "description": "Създава предложение за пълен аутфит базирано на повод, време или настроение. Връща комбинация от дрехи с обяснение.",
+        "workflowId": "={{ $workflow.id }}",
+        "responsePropertyName": "outfit",
+        "fields": {
+          "values": [
+            {
+              "name": "occasion",
+              "description": "За какъв повод е аутфитът: casual, работа, среща, парти, спорт, официално",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "style",
+              "description": "Желан стил: елегантен, спортен, ежедневен, романтичен, бохо",
+              "type": "string",
+              "required": false
+            },
+            {
+              "name": "weather",
+              "description": "Времето навън: топло, студено, дъждовно, променливо",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      },
+      "id": "tool-suggest",
+      "name": "Suggest Outfit",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [900, 600]
+    },
+    {
+      "parameters": {
+        "name": "analyze_wardrobe",
+        "description": "Анализира гардероба и дава препоръки какво липсва, кои дрехи се носят рядко, и съвети за подобрение.",
+        "workflowId": "={{ $workflow.id }}",
+        "responsePropertyName": "analysis",
+        "fields": {
+          "values": [
+            {
+              "name": "focus",
+              "description": "На какво да се фокусира анализът: gaps (липсващи неща), unused (неносени дрехи), colors (цветова палитра), value (стойност)",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      },
+      "id": "tool-analyze",
+      "name": "Analyze Wardrobe",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [1000, 600]
+    },
+    {
+      "parameters": {
+        "name": "get_style_tips",
+        "description": "Дава модни съвети и tips за стил, цветови комбинации, или как да носиш определена дреха.",
+        "workflowId": "={{ $workflow.id }}",
+        "responsePropertyName": "tips",
+        "fields": {
+          "values": [
+            {
+              "name": "topic",
+              "description": "Тема за съвети: цветови комбинации, капсулен гардероб, layering, аксесоари, сезонни тенденции",
+              "type": "string",
+              "required": true
+            }
+          ]
+        }
+      },
+      "id": "tool-tips",
+      "name": "Style Tips",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [1100, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": {{ JSON.stringify($json.output) }},\n  \"suggestions\": []\n}"
+      },
+      "id": "respond-webhook",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [950, 400]
+    },
+    {
+      "parameters": {},
+      "id": "memory-buffer",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [600, 700]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "AI Stylist Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Stylist Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Stylist Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Wardrobe": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Stylist Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suggest Outfit": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Stylist Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Wardrobe": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Stylist Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Style Tips": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Stylist Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Stylist Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

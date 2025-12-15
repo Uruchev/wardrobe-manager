@@ -1,0 +1,306 @@
+{
+  "name": "Fashion Advisor - Professional AI Stylist",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fashion-advisor",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "fashion-advisor"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://yusvrqkmybxntqnsxhcy.supabase.co/rest/v1/clothing_items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "*"
+            },
+            {
+              "name": "user_id",
+              "value": "eq.{{ $json.body.userId }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "get-wardrobe",
+      "name": "Get Wardrobe from Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUPABASE_AUTH_ID",
+          "name": "Supabase API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://yusvrqkmybxntqnsxhcy.supabase.co/rest/v1/outfits",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "*"
+            },
+            {
+              "name": "user_id",
+              "value": "eq.{{ $('Webhook').item.json.body.userId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-outfits",
+      "name": "Get Outfits from Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUPABASE_AUTH_ID",
+          "name": "Supabase API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Вземи данните от Supabase\nconst webhookData = $('Webhook').first().json;\nconst wardrobeItems = $('Get Wardrobe from Supabase').first().json || [];\nconst outfits = $('Get Outfits from Supabase').first().json || [];\n\nconst message = webhookData.body?.message || '';\nconst userId = webhookData.body?.userId || 'demo-user';\n\n// Ако няма данни от Supabase, използвай данните от request-а\nconst finalWardrobe = Array.isArray(wardrobeItems) && wardrobeItems.length > 0 \n  ? wardrobeItems \n  : (webhookData.body?.wardrobe || []);\n\nconst finalOutfits = Array.isArray(outfits) && outfits.length > 0\n  ? outfits\n  : (webhookData.body?.outfits || []);\n\n// Категории на български\nconst categories = {\n  'tops': 'Горници',\n  'bottoms': 'Долници/Панталони',\n  'dresses': 'Рокли',\n  'outerwear': 'Връхни дрехи (якета, палта)',\n  'shoes': 'Обувки',\n  'accessories': 'Аксесоари',\n  'bags': 'Чанти',\n  'jewelry': 'Бижута'\n};\n\n// Групирай дрехите по категория\nconst byCategory = {};\nfinalWardrobe.forEach(item => {\n  const cat = item.category || 'other';\n  if (!byCategory[cat]) byCategory[cat] = [];\n  byCategory[cat].push(item);\n});\n\n// Създай детайлен опис на гардероба\nlet wardrobeDescription = '';\nif (finalWardrobe.length > 0) {\n  wardrobeDescription = `\\n\\n📦 ПЪЛЕН ГАРДЕРОБ (${finalWardrobe.length} артикула):\\n`;\n  wardrobeDescription += '═'.repeat(50) + '\\n';\n  \n  Object.entries(byCategory).forEach(([cat, items]) => {\n    const catName = categories[cat] || cat;\n    wardrobeDescription += `\\n👔 ${catName.toUpperCase()} (${items.length} бр.):\\n`;\n    items.forEach((item, i) => {\n      const details = [];\n      if (item.color) details.push(`цвят: ${item.color}`);\n      if (item.brand) details.push(`марка: ${item.brand}`);\n      if (item.size) details.push(`размер: ${item.size}`);\n      if (item.seasons && item.seasons.length > 0) details.push(`сезони: ${item.seasons.join(', ')}`);\n      if (item.times_worn !== undefined) details.push(`носено ${item.times_worn}x`);\n      if (item.favorite) details.push('⭐ любимо');\n      \n      wardrobeDescription += `  ${i + 1}. ${item.name}`;\n      if (details.length > 0) wardrobeDescription += ` (${details.join(', ')})`;\n      wardrobeDescription += '\\n';\n    });\n  });\n  \n  // Любими дрехи\n  const favorites = finalWardrobe.filter(i => i.favorite);\n  if (favorites.length > 0) {\n    wardrobeDescription += `\\n⭐ ЛЮБИМИ ДРЕХИ: ${favorites.map(i => i.name).join(', ')}\\n`;\n  }\n  \n  // Неносени дрехи\n  const unworn = finalWardrobe.filter(i => i.times_worn === 0);\n  if (unworn.length > 0) {\n    wardrobeDescription += `\\n⚠️ НЕНОСЕНИ (${unworn.length} бр.): ${unworn.map(i => i.name).join(', ')}\\n`;\n  }\n} else {\n  wardrobeDescription = '\\n\\n⚠️ Гардеробът е празен. Потребителят все още не е добавил дрехи.';\n}\n\n// Аутфити\nlet outfitsDescription = '';\nif (finalOutfits.length > 0) {\n  outfitsDescription = `\\n\\n👗 СЪЗДАДЕНИ АУТФИТИ (${finalOutfits.length}):\\n`;\n  finalOutfits.forEach((outfit, i) => {\n    outfitsDescription += `  ${i + 1}. ${outfit.name}`;\n    if (outfit.occasion) outfitsDescription += ` (за ${outfit.occasion})`;\n    if (outfit.times_worn) outfitsDescription += ` - носен ${outfit.times_worn}x`;\n    outfitsDescription += '\\n';\n  });\n}\n\n// Статистики\nconst stats = {\n  totalItems: finalWardrobe.length,\n  totalOutfits: finalOutfits.length,\n  categories: Object.keys(byCategory).length,\n  favorites: finalWardrobe.filter(i => i.favorite).length,\n  totalWorn: finalWardrobe.reduce((sum, i) => sum + (i.times_worn || 0), 0)\n};\n\nreturn {\n  userMessage: message,\n  userId,\n  wardrobeDescription,\n  outfitsDescription,\n  stats,\n  rawWardrobe: finalWardrobe,\n  rawOutfits: finalOutfits\n};"
+      },
+      "id": "merge-data",
+      "name": "Prepare Wardrobe Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userMessage }}",
+        "options": {
+          "systemMessage": "=Ти си FASHION ADVISOR - професионален AI стилист и моден консултант с 20 години опит.\n\n🎯 ТВОЯТА МИСИЯ:\nПомагаш на потребителите да изглеждат страхотно, като използваш РЕАЛНИТЕ дрехи от техния гардероб.\n\n═══════════════════════════════════════════════════════\n📊 СТАТИСТИКА НА ГАРДЕРОБА:\n• Общо артикули: {{ $json.stats.totalItems }}\n• Създадени аутфити: {{ $json.stats.totalOutfits }}\n• Категории: {{ $json.stats.categories }}\n• Любими дрехи: {{ $json.stats.favorites }}\n• Общо носения: {{ $json.stats.totalWorn }}\n═══════════════════════════════════════════════════════\n{{ $json.wardrobeDescription }}\n{{ $json.outfitsDescription }}\n═══════════════════════════════════════════════════════\n\n🎨 ТВОИТЕ СПОСОБНОСТИ:\n1. Предлагаш КОНКРЕТНИ аутфити от наличните дрехи\n2. Обясняваш ЗАЩО определени комбинации работят\n3. Даваш съвети за цветови комбинации\n4. Препоръчваш какво липсва в гардероба\n5. Помагаш за различни поводи (работа, среща, парти, casual)\n\n📋 ПРАВИЛА:\n1. ✅ Отговаряй САМО на български език\n2. ✅ Използвай САМО дрехите от гардероба (освен ако питат какво да купят)\n3. ✅ Бъди конкретен - назовавай дрехите по име\n4. ✅ Бъди ентусиазиран и позитивен 👗✨💃\n5. ✅ Когато предлагаш аутфит, обясни защо комбинацията работи\n6. ✅ Ако гардеробът е празен, насърчи потребителя да добави дрехи\n7. ✅ Давай практични и приложими съвети\n\n💡 ФОРМАТ НА ОТГОВОР ЗА АУТФИТ:\n• 👕 Горна част: [име на дрехата]\n• 👖 Долна част: [име на дрехата]\n• 👟 Обувки: [име на обувките]\n• 👜 Аксесоари: [ако има]\n• 💡 Защо работи: [кратко обяснение]\n\n🚫 ЗАБРАНЕНО:\n- Не измисляй дрехи, които ги няма в гардероба\n- Не използвай английски език\n- Не бъди прекалено дълъг - бъди кратък и ясен"
+        }
+      },
+      "id": "ai-agent",
+      "name": "Fashion Advisor Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1500
+        }
+      },
+      "id": "openai-chat",
+      "name": "OpenAI GPT-4o-mini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [700, 600]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.userId || 'default' }}"
+      },
+      "id": "memory",
+      "name": "Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [850, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": {{ JSON.stringify($json.output) }},\n  \"stats\": {\n    \"totalItems\": {{ $('Prepare Wardrobe Context').item.json.stats.totalItems }},\n    \"totalOutfits\": {{ $('Prepare Wardrobe Context').item.json.stats.totalOutfits }}\n  }\n}"
+      },
+      "id": "respond",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.body.userId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-user",
+      "name": "Has User ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fallback ако няма userId - използвай данните от request-а директно\nconst webhookData = $('Webhook').first().json;\nconst message = webhookData.body?.message || '';\nconst wardrobe = webhookData.body?.wardrobe || [];\nconst outfits = webhookData.body?.outfits || [];\n\n// Категории\nconst categories = {\n  'tops': 'Горници',\n  'bottoms': 'Долници/Панталони',\n  'dresses': 'Рокли',\n  'outerwear': 'Връхни дрехи',\n  'shoes': 'Обувки',\n  'accessories': 'Аксесоари',\n  'bags': 'Чанти',\n  'jewelry': 'Бижута'\n};\n\n// Групирай\nconst byCategory = {};\nwardrobe.forEach(item => {\n  const cat = item.category || 'other';\n  if (!byCategory[cat]) byCategory[cat] = [];\n  byCategory[cat].push(item);\n});\n\n// Описание\nlet wardrobeDescription = '';\nif (wardrobe.length > 0) {\n  wardrobeDescription = `\\n\\n📦 ГАРДЕРОБ (${wardrobe.length} артикула):\\n`;\n  Object.entries(byCategory).forEach(([cat, items]) => {\n    const catName = categories[cat] || cat;\n    wardrobeDescription += `\\n${catName}: ${items.map(i => `${i.name} (${i.color})`).join(', ')}\\n`;\n  });\n} else {\n  wardrobeDescription = '\\n\\nГардеробът е празен.';\n}\n\nreturn {\n  userMessage: message,\n  userId: 'demo-user',\n  wardrobeDescription,\n  outfitsDescription: outfits.length > 0 ? `Аутфити: ${outfits.map(o => o.name).join(', ')}` : '',\n  stats: {\n    totalItems: wardrobe.length,\n    totalOutfits: outfits.length,\n    categories: Object.keys(byCategory).length,\n    favorites: wardrobe.filter(i => i.favorite).length,\n    totalWorn: 0\n  },\n  rawWardrobe: wardrobe,\n  rawOutfits: outfits\n};"
+      },
+      "id": "fallback-context",
+      "name": "Use Request Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 150]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Has User ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has User ID?": {
+      "main": [
+        [
+          {
+            "node": "Get Wardrobe from Supabase",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Outfits from Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Use Request Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Wardrobe from Supabase": {
+      "main": [
+        [
+          {
+            "node": "Prepare Wardrobe Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Outfits from Supabase": {
+      "main": [
+        [
+          {
+            "node": "Prepare Wardrobe Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Wardrobe Context": {
+      "main": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Request Data": {
+      "main": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fashion Advisor Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-4o-mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

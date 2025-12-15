@@ -1,0 +1,467 @@
+{
+  "name": "Fashion Advisor Ultimate - AI Personal Stylist",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fashion-advisor",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Fashion Advisor Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [180, 400],
+      "webhookId": "fashion-advisor"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate incoming data\nconst body = $input.first().json.body || {};\n\nconst data = {\n  message: body.message || '',\n  userId: body.userId || 'demo-user',\n  messageType: body.messageType || 'chat',\n  location: body.location || 'Sofia, Bulgaria',\n  occasion: body.occasion || null,\n  preferences: body.preferences || {},\n  sessionId: body.sessionId || body.userId || 'demo-session',\n  timestamp: new Date().toISOString()\n};\n\n// Determine intent from message\nconst lowerMessage = data.message.toLowerCase();\n\nif (lowerMessage.includes('аутфит') || lowerMessage.includes('outfit') || \n    lowerMessage.includes('комбинация') || lowerMessage.includes('какво да облека')) {\n  data.intent = 'outfit_suggestion';\n} else if (lowerMessage.includes('време') || lowerMessage.includes('weather') ||\n           lowerMessage.includes('студено') || lowerMessage.includes('топло')) {\n  data.intent = 'weather_based';\n} else if (lowerMessage.includes('тренд') || lowerMessage.includes('trend') ||\n           lowerMessage.includes('мода') || lowerMessage.includes('модерно')) {\n  data.intent = 'fashion_trends';\n} else if (lowerMessage.includes('купя') || lowerMessage.includes('buy') ||\n           lowerMessage.includes('препоръчай') || lowerMessage.includes('липсва')) {\n  data.intent = 'shopping_advice';\n} else if (lowerMessage.includes('анализ') || lowerMessage.includes('статистика')) {\n  data.intent = 'wardrobe_analysis';\n} else {\n  data.intent = 'general_chat';\n}\n\nreturn data;"
+      },
+      "id": "parse-request",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 400]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 2000
+        }
+      },
+      "id": "openai-model",
+      "name": "OpenAI GPT-4o-mini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [800, 700],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Parse Request').item.json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "chat-memory",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [950, 700]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Използвай този инструмент за да вземеш ВСИЧКИ дрехи от гардероба на потребителя. Връща пълен списък с дрехи включително категория, цвят, марка, размер, сезони и колко пъти е носено. ВИНАГИ използвай този инструмент ПЪРВО когато потребителят пита за аутфити, какво да облече или нещо свързано с гардероба.",
+        "operation": "getAll",
+        "tableId": "clothing_items",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Parse Request').item.json.userId }}"
+            }
+          ]
+        }
+      },
+      "id": "supabase-wardrobe",
+      "name": "Вземи Гардероб",
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [600, 800],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase Fashion Advisor"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Използвай този инструмент за да вземеш запазените аутфити на потребителя. Аутфитите са предварително дефинирани комбинации от дрехи, които потребителят е запазил.",
+        "operation": "getAll",
+        "tableId": "outfits",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Parse Request').item.json.userId }}"
+            }
+          ]
+        }
+      },
+      "id": "supabase-outfits",
+      "name": "Вземи Запазени Аутфити",
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [600, 920],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase Fashion Advisor"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Използвай този инструмент за да вземеш профила на потребителя включително стилови предпочитания, телосложение, предпочитани цветове и избягвани цветове. Помага за персонализиране на модните съвети.",
+        "operation": "get",
+        "tableId": "user_profiles",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('Parse Request').item.json.userId }}"
+            }
+          ]
+        }
+      },
+      "id": "supabase-profile",
+      "name": "Вземи Профил",
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [750, 800],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase Fashion Advisor"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Използвай този инструмент за да запазиш нова комбинация от дрехи в гардероба. Използвай когато потребителят каже, че харесва предложен аутфит и иска да го запази.",
+        "operation": "create",
+        "tableId": "outfits",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Parse Request').item.json.userId }}"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $json.outfitName }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.outfitDescription }}"
+            },
+            {
+              "fieldId": "occasion",
+              "fieldValue": "={{ $json.occasion }}"
+            }
+          ]
+        }
+      },
+      "id": "supabase-save-outfit",
+      "name": "Запази Аутфит",
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [750, 920],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase Fashion Advisor"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Използвай този инструмент за да провериш ТЕКУЩОТО ВРЕМЕ в локацията на потребителя. Времето е критично за препоръки - провери го когато предлагаш аутфит за да се увериш, че е подходящ за температурата и условията. Връща температура, описание, влажност и вятър.",
+        "operation": "currentWeather",
+        "format": "metric",
+        "locationSelection": "cityName",
+        "cityName": "={{ $('Parse Request').item.json.location || 'Sofia' }}",
+        "language": "bg"
+      },
+      "id": "weather-current",
+      "name": "Текущо Време",
+      "type": "n8n-nodes-base.openWeatherMapTool",
+      "typeVersion": 1,
+      "position": [600, 1040],
+      "credentials": {
+        "openWeatherMapApi": {
+          "id": "YOUR_OPENWEATHERMAP_CREDENTIAL_ID",
+          "name": "OpenWeatherMap"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Използвай този инструмент за 5-дневна прогноза за времето. Използвай когато потребителят пита какво да облече през следващите дни или за предстоящи събития.",
+        "operation": "5DayForecast",
+        "format": "metric",
+        "locationSelection": "cityName",
+        "cityName": "={{ $('Parse Request').item.json.location || 'Sofia' }}",
+        "language": "bg"
+      },
+      "id": "weather-forecast",
+      "name": "Прогноза 5 Дни",
+      "type": "n8n-nodes-base.openWeatherMapTool",
+      "typeVersion": 1,
+      "position": [750, 1040],
+      "credentials": {
+        "openWeatherMapApi": {
+          "id": "YOUR_OPENWEATHERMAP_CREDENTIAL_ID",
+          "name": "OpenWeatherMap"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "gl": "bg",
+          "hl": "bg"
+        }
+      },
+      "id": "fashion-search",
+      "name": "Търсене Модни Тенденции",
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [600, 1160],
+      "credentials": {
+        "serpApi": {
+          "id": "YOUR_SERPAPI_CREDENTIAL_ID",
+          "name": "SerpApi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Parse Request').item.json.message }}",
+        "options": {
+          "systemMessage": "# 🎨 FASHION ADVISOR - Персонален AI Стилист\n\nТи си FASHION ADVISOR - професионален AI стилист с 20+ години опит в модната индустрия. Твоята мисия е да помагаш на потребителите да изглеждат и се чувстват невероятно, използвайки РЕАЛНИТЕ дрехи от техния гардероб.\n\n## 📋 ТВОИТЕ ИНСТРУМЕНТИ\n\nИмаш достъп до следните инструменти - използвай ги активно:\n\n1. **Вземи Гардероб** - ВИНАГИ го използвай първо за да видиш какви дрехи има потребителят\n2. **Вземи Запазени Аутфити** - За референция какви комбинации е харесал преди\n3. **Вземи Профил** - За персонализирани съвети базирани на предпочитания\n4. **Текущо Време** - ЗАДЪЛЖИТЕЛНО за препоръки какво да облече днес\n5. **Прогноза 5 Дни** - За планиране на аутфити за следващите дни\n6. **Търсене Модни Тенденции** - За търсене на актуални модни тенденции (търси на английски за по-добри резултати)\n7. **Запази Аутфит** - Когато потребителят иска да запази комбинация\n\n## 🎯 ВАЖНА ИНФОРМАЦИЯ ЗА ПОТРЕБИТЕЛЯ\n\n- **User ID**: {{ $('Parse Request').item.json.userId }}\n- **Локация**: {{ $('Parse Request').item.json.location }}\n- **Повод**: {{ $('Parse Request').item.json.occasion || 'не е уточнен' }}\n- **Намерение**: {{ $('Parse Request').item.json.intent }}\n- **Час**: {{ $('Parse Request').item.json.timestamp }}\n\n## 📝 ПРАВИЛА ЗА ОТГОВОРИ\n\n### ✅ ЗАДЪЛЖИТЕЛНО:\n1. Отговаряй САМО на български език\n2. ВИНАГИ извикай Вземи Гардероб преди да предлагаш аутфит\n3. ВИНАГИ провери времето преди да препоръчаш какво да облече\n4. Използвай САМО дрехи от реалния гардероб (освен при въпрос какво да купи)\n5. Бъди конкретен - назовавай дрехите по тяхните имена от базата\n6. Бъди ентусиазиран, позитивен и насърчаващ 👗✨💃\n7. Обяснявай ЗАЩО определена комбинация работи\n8. Дай практични и приложими съвети\n\n### 🚫 ЗАБРАНЕНО:\n- Не измисляй дрехи, които ги няма в гардероба\n- Не използвай английски термини без обяснение\n- Не бъди прекалено дълъг - бъди кратък и ясен\n- Не предлагай дрехи неподходящи за сезона/времето\n\n## 💡 ФОРМАТ ЗА ПРЕДЛОЖЕНИЕ НА АУТФИТ\n\nКогато предлагаш аутфит, използвай този формат:\n\n🌟 АУТФИТ: [Име на комбинацията]\n\n👕 Горна част: [точно име от гардероба]\n👖 Долна част: [точно име от гардероба]\n👞 Обувки: [точно име от гардероба]\n👜 Аксесоари: [ако има]\n🧥 Връхна дреха: [ако е нужна според времето]\n\n✨ Защо работи: [кратко обяснение за цветова хармония, стил, повод]\n\n🌡️ Подходящо за: [температура и условия]\n\n## 🔄 ЛОГИКА НА РАБОТА\n\n1. **При въпрос за аутфит**:\n   - Първо: Провери времето с Текущо Време\n   - Второ: Вземи гардероба с Вземи Гардероб\n   - Трето: Вземи профила за предпочитания с Вземи Профил\n   - Четвърто: Предложи 1-2 комбинации\n\n2. **При въпрос за модни тенденции**:\n   - Търси актуална информация с Търсене Модни Тенденции\n   - Свържи я с наличните дрехи в гардероба\n   - Предложи как да постигне тренда с това, което има\n\n3. **При въпрос какво липсва/да купи**:\n   - Анализирай гардероба с Вземи Гардероб\n   - Идентифицирай празнини\n   - Предложи конкретни артикули за закупуване\n\n4. **При празен гардероб**:\n   - Насърчи потребителя да добави дрехи\n   - Обясни как работи приложението\n   - Дай общи модни съвети\n\n## 🎨 СТИЛИСТИЧНИ ПОЗНАНИЯ\n\n- Класически цветови комбинации (неутрални + акцент)\n- Правило 60-30-10 за цветове\n- Подходящи стилове за различни поводи\n- Сезонни препоръки\n- Тенденции 2024/2025\n- Body-positive подход\n\nЗапомни: Твоята цел е потребителят да се почувства уверен и стилен с това, което вече притежава! 👗✨",
+          "maxIterations": 10
+        }
+      },
+      "id": "ai-agent",
+      "name": "Fashion Advisor Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": {{ JSON.stringify($json.output) }},\n  \"userId\": \"{{ $('Parse Request').item.json.userId }}\",\n  \"intent\": \"{{ $('Parse Request').item.json.intent }}\",\n  \"timestamp\": \"{{ $('Parse Request').item.json.timestamp }}\"\n}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-success",
+      "name": "Изпрати Отговор",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Fashion Advisor Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-4o-mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вземи Гардероб": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вземи Запазени Аутфити": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вземи Профил": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Запази Аутфит": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Текущо Време": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прогноза 5 Дни": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Търсене Модни Тенденции": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fashion Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fashion Advisor Agent": {
+      "main": [
+        [
+          {
+            "node": "Изпрати Отговор",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "AI",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Fashion",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Supabase",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

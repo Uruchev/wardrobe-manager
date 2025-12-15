@@ -1,0 +1,109 @@
+{
+  "name": "Fashion Advisor AI Stylist",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-stylist",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "f7d8a9b0-1234-5678-90ab-cdef12345678",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "ai-stylist"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Подготви контекст за гардероба\nconst body = $input.first().json.body || {};\nconst wardrobe = body.wardrobe || [];\nconst outfits = body.outfits || [];\nconst message = body.message || '';\n\nlet wardrobeContext = '';\n\nif (wardrobe.length > 0) {\n  wardrobeContext = `\\n\\nГардероб на потребителя (${wardrobe.length} дрехи):\\n`;\n  \n  // Групирай по категория\n  const categories = {\n    'tops': 'Горници',\n    'bottoms': 'Долници', \n    'dresses': 'Рокли',\n    'outerwear': 'Връхни дрехи',\n    'shoes': 'Обувки',\n    'accessories': 'Аксесоари',\n    'bags': 'Чанти',\n    'jewelry': 'Бижута'\n  };\n  \n  const byCategory = {};\n  wardrobe.forEach(item => {\n    const cat = item.category || 'other';\n    if (!byCategory[cat]) byCategory[cat] = [];\n    byCategory[cat].push(item);\n  });\n  \n  Object.entries(byCategory).forEach(([cat, items]) => {\n    const catName = categories[cat] || cat;\n    wardrobeContext += `\\n${catName}: ${items.map(i => `${i.name} (${i.color}${i.brand ? ', ' + i.brand : ''})`).join(', ')}`;\n  });\n  \n  // Добави любими\n  const favorites = wardrobe.filter(i => i.favorite);\n  if (favorites.length > 0) {\n    wardrobeContext += `\\n\\nЛюбими дрехи: ${favorites.map(i => i.name).join(', ')}`;\n  }\n} else {\n  wardrobeContext = '\\n\\nПотребителят все още не е добавил дрехи в гардероба си.';\n}\n\nif (outfits && outfits.length > 0) {\n  wardrobeContext += `\\n\\nСъздадени аутфити (${outfits.length}): ${outfits.map(o => o.name).join(', ')}`;\n}\n\nreturn {\n  message,\n  wardrobeContext,\n  itemCount: wardrobe.length,\n  outfitCount: outfits ? outfits.length : 0\n};"
+      },
+      "id": "a1b2c3d4-5678-90ab-cdef-123456789abc",
+      "name": "Prepare Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "content": "=Ти си Fashion Advisor - професионален AI стилист и моден консултант. Помагаш на потребителите да изберат какво да облекат, създаваш стилни комбинации от дрехи и даваш персонализирани модни съвети.\n\n## Твоите способности:\n1. Предлагаш аутфити базирани на повод, време и настроение\n2. Анализираш гардероба и даваш препоръки какво липсва\n3. Обясняваш защо определени комбинации работят добре\n4. Даваш съвети за цветови комбинации и стилове\n5. Помагаш с организация на гардероба\n\n## Правила:\n- Отговаряй САМО на български език\n- Бъди приятелски, ентусиазиран и насърчаващ\n- Използвай емоджита за по-топъл тон 👗👔✨💃\n- Когато предлагаш аутфит, обясни ЗАЩО тази комбинация работи\n- Ако нямаш достатъчно информация, задай уточняващи въпроси\n- Давай конкретни и практични съвети\n\n## Контекст за гардероба:{{ $json.wardrobeContext }}\n\n## Статистика:\n- Общо дрехи: {{ $json.itemCount }}\n- Създадени аутфити: {{ $json.outfitCount }}",
+              "role": "system"
+            },
+            {
+              "content": "={{ $json.message }}",
+              "role": "user"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "b2c3d4e5-6789-0abc-def1-23456789abcd",
+      "name": "AI Stylist",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": {{ JSON.stringify($json.text) }},\n  \"suggestions\": []\n}"
+      },
+      "id": "c3d4e5f6-7890-abcd-ef12-3456789abcde",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "AI Stylist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Stylist": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0
+}

@@ -1,7 +1,12 @@
 import { supabase, ClothingItem, Outfit } from '../config/supabase';
 import { useWardrobeStore, useOutfitsStore, useAIStore } from '../store';
 
-const N8N_WEBHOOK_URL = 'https://n8n.simeontsvetanovn8nworkflows.site/webhook';
+// n8n Fashion Advisor Ultimate Webhook URL
+const N8N_WEBHOOK_URL = 'https://n8n.simeontsvetanovn8nworkflows.site/webhook/fashion-advisor';
+
+// Demo mode flag - set to true for testing without authentication
+const DEMO_MODE = true;
+const DEMO_USER_ID = 'demo-user-123';
 
 interface ServiceResponse<T = void> {
   success: boolean;
@@ -55,8 +60,14 @@ export const aiService = {
     context?: Partial<AIContext>
   ): Promise<ServiceResponse<ChatMessage>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return { success: false, error: 'Не си влязъл в профила' };
+      // Get user ID - use demo mode if no auth
+      let userId = DEMO_USER_ID;
+      
+      if (!DEMO_MODE) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: 'Не си влязъл в профила' };
+        userId = user.id;
+      }
 
       // Get current wardrobe and outfits for context
       const wardrobe = useWardrobeStore.getState().items;
@@ -80,30 +91,32 @@ export const aiService = {
       // Add to store
       useAIStore.getState().addMessage(userMessage);
 
-      // Call n8n webhook for AI processing
-      const response = await fetch(`${N8N_WEBHOOK_URL}/ai-stylist`, {
+      // Determine occasion from message
+      const lowerMessage = message.toLowerCase();
+      let occasion = null;
+      if (lowerMessage.includes('работа') || lowerMessage.includes('офис')) occasion = 'work';
+      else if (lowerMessage.includes('среща') || lowerMessage.includes('вечеря')) occasion = 'date';
+      else if (lowerMessage.includes('спорт') || lowerMessage.includes('тренировка')) occasion = 'sport';
+      else if (lowerMessage.includes('парти') || lowerMessage.includes('клуб')) occasion = 'party';
+      else if (lowerMessage.includes('casual') || lowerMessage.includes('ежедневие')) occasion = 'casual';
+
+      // Call n8n Fashion Advisor Ultimate webhook
+      const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: user.id,
           message,
-          context: {
+          userId,
+          messageType: 'chat',
+          location: context?.weather?.city || 'Sofia, Bulgaria',
+          occasion,
+          sessionId: `session-${userId}-${Date.now()}`,
+          preferences: {
             wardrobeCount: wardrobe.length,
-            wardrobeCategories: this.summarizeWardrobe(wardrobe),
             outfitCount: outfits.length,
-            weather: context?.weather,
-            recentWorn: context?.recentWorn?.slice(0, 5).map(i => ({
-              name: i.name,
-              category: i.category,
-              color: i.color,
-            })),
           },
-          conversationHistory: useAIStore.getState().messages.slice(-10).map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
         }),
       });
 
