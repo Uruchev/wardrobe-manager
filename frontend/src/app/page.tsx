@@ -1,22 +1,31 @@
 "use client";
 
-import { useEffect } from "react";
-import { navigateTo } from "@/lib/config";
+import { useEffect, useState } from "react";
 
 export default function HomePage() {
+  const [message, setMessage] = useState("Зареждане...");
+
   useEffect(() => {
-    // Check if user is logged in
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (token) {
-      navigateTo("/wardrobe");
-    } else {
-      navigateTo("/login");
-    }
+    setMessage("Fashion Advisor - Web версия за тестване");
   }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+    <div style={{ 
+      minHeight: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      alignItems: 'center', 
+      justifyContent: 'center',
+      fontFamily: 'system-ui, sans-serif',
+      backgroundColor: '#f5f5f5'
+    }}>
+      <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#7c3aed' }}>
+        👗 Fashion Advisor
+      </h1>
+      <p style={{ color: '#666' }}>{message}</p>
+      <p style={{ marginTop: '2rem', fontSize: '0.875rem', color: '#999' }}>
+        Използвай мобилното приложение за пълната функционалност
+      </p>
     </div>
   );
 }
