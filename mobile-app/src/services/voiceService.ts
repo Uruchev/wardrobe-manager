@@ -1,8 +1,24 @@
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 
 const N8N_WEBHOOK_URL = 'https://n8n.simeontsvetanovn8nworkflows.site/webhook';
+
+// Предпочитани женски гласове за различни платформи
+const PREFERRED_FEMALE_VOICES = [
+  'Microsoft Irina', // Windows Bulgarian
+  'Irina',
+  'Google български', // Chrome
+  'Milena', // Some TTS engines
+  'Anna', // Generic female
+  'Samantha', // iOS
+  'Victoria',
+  'Karen',
+  'Moira',
+  'Fiona',
+  'Tessa',
+];
 
 interface ServiceResponse<T = void> {
   success: boolean;
@@ -186,7 +202,7 @@ class VoiceService {
   }
 
   /**
-   * Прочитане на текст на глас (Text-to-Speech)
+   * Прочитане на текст на глас (Text-to-Speech) с женски глас
    */
   async speak(text: string, options?: {
     language?: string;
@@ -204,10 +220,43 @@ class VoiceService {
       // Clean text from emojis and special characters for better TTS
       const cleanText = this.cleanTextForSpeech(text);
 
+      // Опитай да намериш женски глас
+      let selectedVoice: string | undefined;
+      
+      if (Platform.OS === 'web') {
+        // За web браузър - търси женски глас
+        const voices = await Speech.getAvailableVoicesAsync();
+        const femaleVoice = voices.find(voice => 
+          PREFERRED_FEMALE_VOICES.some(name => 
+            voice.name?.toLowerCase().includes(name.toLowerCase()) ||
+            voice.identifier?.toLowerCase().includes(name.toLowerCase())
+          ) ||
+          voice.name?.toLowerCase().includes('female') ||
+          voice.name?.toLowerCase().includes('woman')
+        );
+        
+        // Ако няма български женски глас, потърси английски женски
+        if (!femaleVoice) {
+          const anyFemaleVoice = voices.find(voice =>
+            voice.name?.toLowerCase().includes('female') ||
+            voice.name?.toLowerCase().includes('zira') || // Windows female
+            voice.name?.toLowerCase().includes('hazel') ||
+            voice.name?.toLowerCase().includes('susan') ||
+            voice.name?.toLowerCase().includes('samantha') // iOS female
+          );
+          if (anyFemaleVoice) {
+            selectedVoice = anyFemaleVoice.identifier;
+          }
+        } else {
+          selectedVoice = femaleVoice.identifier;
+        }
+      }
+
       await Speech.speak(cleanText, {
         language: options?.language || 'bg-BG',
-        pitch: options?.pitch || 1.0,
-        rate: options?.rate || 0.9,
+        pitch: options?.pitch || 1.1, // Малко по-висок pitch за женски глас
+        rate: options?.rate || 0.85, // Малко по-бавно за по-ясно произношение
+        voice: selectedVoice,
         onDone: () => {
           this.isSpeaking = false;
         },

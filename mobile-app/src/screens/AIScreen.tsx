@@ -39,7 +39,7 @@ const QUICK_PROMPTS = [
 
 export default function AIScreen() {
   const [input, setInput] = useState('');
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(false); // Изключено по подразбиране
   const { messages, isLoading, isListening, addMessage, setLoading, setListening } =
     useAIChatStore();
   const { items } = useWardrobeStore();
